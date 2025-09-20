@@ -1,57 +1,47 @@
-# Name of the workflow (appears in GitHub Actions UI)
 name: CI - Angular Build & Deploy to GitHub Pages
 
-# When this workflow should run
 on:
-  push:                        # Trigger when code is pushed
-    branches: [ main ]         # Only when pushing to the main branch
+  push:
+    branches: [ main ]
 
-# Define environment variables (can be used in steps)
 env:
-  REPO_NAME: ${{ github.event.repository.name }}  # The repo name (used for --base-href)
+  REPO_NAME: ${{ github.event.repository.name }}
 
 jobs:
-  build-and-deploy:            # Job name
-    runs-on: ubuntu-latest     # Run job on the latest Ubuntu GitHub-hosted VM
+  build-and-deploy:
+    runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout the repository so workflow has access to your code
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Step 2: Setup Node.js (Angular CLI requires Node >= 20.19 or 22.12)
       - name: Use Node.js 22.12.0
         uses: actions/setup-node@v4
         with:
-          node-version: '22.12.0'   # Node.js version to install
-          cache: 'npm'              # Cache npm dependencies for faster builds
+          node-version: '22.12.0'
+          cache: 'npm'
 
-      # Step 3: Restore npm cache (so we don’t download dependencies every time)
       - name: Restore npm cache
         uses: actions/cache@v4
         with:
-          path: |                   # Paths to cache
+          path: |
             ~/.npm
             node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}   # Cache key
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
 
-      # Step 4: Install dependencies (using package-lock.json for reproducibility)
       - name: Install dependencies
-        run: npm ci   # Clean install (preferred in CI)
+        run: npm ci
 
-      # Step 5: Build Angular app in production mode with correct base-href
+      # <-- CHANGED: run npm script (uses local ng from node_modules)
       - name: Build (production) with correct base-href
-        # base-href is set to /repo-name/ for GitHub Pages project sites
-        run: ng build --configuration production --base-href /${{ env.REPO_NAME }}/
+        run: npm run build --if-present -- --configuration production --base-href /angular-builds/
 
-      # Step 6: Show dist contents (debugging, see what’s inside dist/)
       - name: Show dist contents
         run: ls -la dist || true
 
-      # Step 7: Copy index.html to 404.html (important for SPA routing on GitHub Pages)
-      - name: Ensure 404.html for SPA routing (copy index.html -> 404.html)
+      - name: Ensure 404.html for SPA routing
         run: |
           if [ -d "dist/${{ env.REPO_NAME }}" ]; then
             cp dist/${{ env.REPO_NAME }}/index.html dist/${{ env.REPO_NAME }}/404.html || true
@@ -60,10 +50,9 @@ jobs:
             exit 1
           fi
 
-      # Step 8: Deploy to GitHub Pages branch (gh-pages)
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}    # GitHub provides this automatically
-          publish_dir: ./dist/${{ env.REPO_NAME }}     # Folder to publish (from Angular build)
-          keep_files: false                            # Replace old files each time
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist/${{ env.REPO_NAME }}
+          keep_files: false
