@@ -4,12 +4,12 @@ on:
   push:
     branches: [ main ]
 
-env:
-  REPO_NAME: ${{ github.event.repository.name }}
-
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    env:
+      # Default base-href path — overridden by detected repo name below if needed
+      REPO_NAME: ${{ github.event.repository.name }}
 
     steps:
       - name: Checkout repository
@@ -34,19 +34,50 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # <-- CHANGED: run npm script (uses local ng from node_modules)
-      - name: Build (production) with correct base-href
-        run: npm run build --if-present -- --configuration production --base-href /angular-builds/
+      - name: Show project files (debug)
+        run: ls -la
 
-      - name: Show dist contents
+      - name: Build (production) using local Angular CLI
+        # Uses local @angular/cli from node_modules (ensure @angular/cli is in devDependencies)
+        # The '--' after npm run build forwards args to the script.
+        run: npm run build --if-present -- --configuration production --base-href /${{ env.REPO_NAME }}/
+
+      - name: Show dist contents (debug)
         run: ls -la dist || true
 
-      - name: Ensure 404.html for SPA routing
+      # Find the actual folder name inside dist/ and expose it as a step output
+      - id: find-dist
+        name: Detect dist subfolder
         run: |
-          if [ -d "dist/${{ env.REPO_NAME }}" ]; then
-            cp dist/${{ env.REPO_NAME }}/index.html dist/${{ env.REPO_NAME }}/404.html || true
+          if [ ! -d dist ]; then
+            echo "ERROR: dist directory does not exist. Build likely failed."
+            ls -la || true
+            exit 1
+          fi
+
+          # find first directory inside dist (ignore files). This handles workspaces with dist/<project> structure.
+          DIST_SUBDIR=$(find dist -maxdepth 1 -mindepth 1 -type d -printf '%f\n' | head -n 1 || true)
+
+          if [ -z "$DIST_SUBDIR" ]; then
+            echo "ERROR: no subdirectory found inside dist/. Listing contents for debugging:"
+            ls -la dist || true
+            exit 1
+          fi
+
+          echo "Detected dist subfolder: $DIST_SUBDIR"
+          # export to GITHUB_OUTPUT so later steps can use it
+          echo "DIST_DIR=$DIST_SUBDIR" >> $GITHUB_OUTPUT
+
+      - name: Ensure 404.html for SPA routing (copy index.html -> 404.html)
+        run: |
+          TARGET_DIR="dist/${{ steps.find-dist.outputs.DIST_DIR }}"
+          echo "Target dir: $TARGET_DIR"
+          if [ -d "$TARGET_DIR" ]; then
+            cp "$TARGET_DIR/index.html" "$TARGET_DIR/404.html" || true
+            echo "Copied index.html to 404.html"
           else
-            echo "dist/${{ env.REPO_NAME }} not found. Build may have failed."
+            echo "$TARGET_DIR not found. Build may have failed."
+            ls -la dist || true
             exit 1
           fi
 
@@ -54,5 +85,5 @@ jobs:
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist/${{ env.REPO_NAME }}
+          publish_dir: ./dist/${{ steps.find-dist.outputs.DIST_DIR }}
           keep_files: false
