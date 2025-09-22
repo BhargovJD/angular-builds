@@ -10,22 +10,22 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4  # v5 doesn't exist yet, latest is v4
+        uses: actions/checkout@v4
 
       - name: Use Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20  # or 18 (LTS), make sure it matches your Angular project
+          node-version: 20
           cache: 'npm'
-          
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Angular app
+        run: npx ng build my-first-app --configuration production --output-path=dist/my-first-app
+
       - name: Upload Build on Artifacts
         uses: actions/upload-artifact@v4.6.2
         with:
           name: build
           path: dist/my-first-app
-          
-      - name: Install dependencies
-        run: npm install
-
-      - name: Upload a Build Artifact
-        run: npm run build -- --configuration production
