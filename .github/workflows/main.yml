@@ -1,89 +1,24 @@
-name: CI - Angular Build & Deploy to GitHub Pages
+name: Angular Build
 
 on:
   push:
     branches: [ main ]
 
 jobs:
-  build-and-deploy:
+  build-angular-app:
     runs-on: ubuntu-latest
-    env:
-      # Default base-href path — overridden by detected repo name below if needed
-      REPO_NAME: ${{ github.event.repository.name }}
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4  # v5 doesn't exist yet, latest is v4
 
-      - name: Use Node.js 22.12.0
+      - name: Use Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22.12.0'
-          cache: 'npm'
-
-      - name: Restore npm cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.npm
-            node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
+          node-version: 20  # or 18 (LTS), make sure it matches your Angular project
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
-      - name: Show project files (debug)
-        run: ls -la
-
-      - name: Build (production) using local Angular CLI
-        # Uses local @angular/cli from node_modules (ensure @angular/cli is in devDependencies)
-        # The '--' after npm run build forwards args to the script.
-        run: npm run build --if-present -- --configuration production --base-href /${{ env.REPO_NAME }}/
-
-      - name: Show dist contents (debug)
-        run: ls -la dist || true
-
-      # Find the actual folder name inside dist/ and expose it as a step output
-      - id: find-dist
-        name: Detect dist subfolder
-        run: |
-          if [ ! -d dist ]; then
-            echo "ERROR: dist directory does not exist. Build likely failed."
-            ls -la || true
-            exit 1
-          fi
-
-          # find first directory inside dist (ignore files). This handles workspaces with dist/<project> structure.
-          DIST_SUBDIR=$(find dist -maxdepth 1 -mindepth 1 -type d -printf '%f\n' | head -n 1 || true)
-
-          if [ -z "$DIST_SUBDIR" ]; then
-            echo "ERROR: no subdirectory found inside dist/. Listing contents for debugging:"
-            ls -la dist || true
-            exit 1
-          fi
-
-          echo "Detected dist subfolder: $DIST_SUBDIR"
-          # export to GITHUB_OUTPUT so later steps can use it
-          echo "DIST_DIR=$DIST_SUBDIR" >> $GITHUB_OUTPUT
-
-      - name: Ensure 404.html for SPA routing (copy index.html -> 404.html)
-        run: |
-          TARGET_DIR="dist/${{ steps.find-dist.outputs.DIST_DIR }}"
-          echo "Target dir: $TARGET_DIR"
-          if [ -d "$TARGET_DIR" ]; then
-            cp "$TARGET_DIR/index.html" "$TARGET_DIR/404.html" || true
-            echo "Copied index.html to 404.html"
-          else
-            echo "$TARGET_DIR not found. Build may have failed."
-            ls -la dist || true
-            exit 1
-          fi
-
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist/${{ steps.find-dist.outputs.DIST_DIR }}
-          keep_files: false
+      - name: Build Angular app
+        run: npm run build -- --configuration production
