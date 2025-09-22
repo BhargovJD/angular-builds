@@ -16,9 +16,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20  # or 18 (LTS), make sure it matches your Angular project
-
+          cache: 'npm'
+          
+      - name: Upload Build on Artifacts
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: build
+          path: dist/angular-builds
+          
       - name: Install dependencies
         run: npm install
 
-      - name: Build Angular app
+      - name: Upload a Build Artifact
         run: npm run build -- --configuration production
