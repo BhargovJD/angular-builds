@@ -8,6 +8,11 @@ jobs:
   build-angular-app:
     runs-on: ubuntu-latest
 
+    concurrency:
+      group: build-job
+      cancel-in-progress: true
+
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
